@@ -31,7 +31,9 @@ RUN git clone --depth 1 https://github.com/badaix/snapcast.git && \
          -DBUILD_SERVER=ON \
          -DBUILD_TESTS=OFF \
          .. && \
-    make -j"$(nproc)" server && \
+    make -j"$(nproc)" snapserver && \
+    mkdir -p /build/snapcast/bin && \
+    cp server/snapserver /build/snapcast/bin/ && \
     strip /build/snapcast/bin/snapserver
 
 # Runtime stage
