@@ -2,6 +2,7 @@
 FROM alpine:3.19 AS builder
 
 # Install build dependencies
+# hadolint ignore=DL3018
 RUN apk add --no-cache \
     build-base \
     cmake \
@@ -23,12 +24,13 @@ RUN git clone https://github.com/badaix/snapcast.git && \
     mkdir build && \
     cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_PULSE=OFF .. && \
-    make -j$(nproc)
+    make -j"$(nproc)"
 
 # Runtime stage
 FROM alpine:3.19
 
 # Install runtime dependencies
+# hadolint ignore=DL3018
 RUN apk add --no-cache \
     boost-libs \
     expat \
@@ -52,6 +54,7 @@ RUN apk add --no-cache \
     && mkdir -p /var/lib/snapserver
 
 # Install shairport-sync from source
+# hadolint ignore=DL3018
 RUN apk add --no-cache --virtual .build-deps \
     build-base \
     git \
@@ -64,28 +67,33 @@ RUN apk add --no-cache --virtual .build-deps \
     alsa-lib-dev \
     openssl-dev \
     soxr-dev \
-    avahi-dev \
-    && cd /tmp \
-    && git clone https://github.com/mikebrady/shairport-sync.git \
-    && cd shairport-sync \
-    && autoreconf -i -f \
-    && ./configure --with-alsa --with-avahi --with-ssl=openssl --with-soxr --with-metadata \
-    && make \
-    && make install \
-    && cd / \
-    && rm -rf /tmp/shairport-sync \
-    && apk del .build-deps
+    avahi-dev
+
+# Clone and build shairport-sync
+WORKDIR /tmp
+RUN git clone https://github.com/mikebrady/shairport-sync.git && \
+    cd shairport-sync && \
+    autoreconf -i -f && \
+    ./configure --with-alsa --with-avahi --with-ssl=openssl --with-soxr --with-metadata && \
+    make && \
+    make install && \
+    cd / && \
+    rm -rf /tmp/shairport-sync && \
+    apk del .build-deps
 
 # Install librespot from source
+# hadolint ignore=DL3018
 RUN apk add --no-cache --virtual .build-deps \
     build-base \
     cargo \
     rust \
-    alsa-lib-dev \
-    && mkdir -p /opt/librespot/bin \
-    && cd /tmp \
-    && cargo install librespot --root=/opt/librespot \
-    && apk del .build-deps
+    alsa-lib-dev
+
+# Build librespot
+WORKDIR /tmp
+RUN mkdir -p /opt/librespot/bin && \
+    cargo install librespot --root=/opt/librespot && \
+    apk del .build-deps
 
 # Copy binaries from builder
 COPY --from=builder /build/snapcast/build/bin/snapserver /usr/local/bin/
