@@ -1,0 +1,46 @@
+name: Test Docker Build
+
+on:
+  pull_request:
+    paths:
+      - 'Dockerfile'
+      - '.github/workflows/docker-test.yml'
+  workflow_dispatch:
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          tags: snapserver:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Test container
+        run: |
+          docker run --name snapserver-test -d snapserver:test
+          sleep 10
+          docker ps | grep snapserver-test
+          docker logs snapserver-test
+          # Check if the container is running
+          CONTAINER_RUNNING=$(docker inspect -f '{{.State.Running}}' snapserver-test)
+          if [ "$CONTAINER_RUNNING" != "true" ]; then
+            echo "Container is not running"
+            exit 1
+          fi
+          # Check if the HTTP server is responding
+          docker exec snapserver-test wget --spider --quiet http://localhost:1780/v2/server/status || exit 1
+          echo "Container test passed"
+          docker stop snapserver-test
+          docker rm snapserver-test 

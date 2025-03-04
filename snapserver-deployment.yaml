@@ -1,0 +1,140 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: snapserver-config
+data:
+  snapserver.conf: |
+    [server]
+    # HTTP server settings
+    http = {
+        enabled = true
+        bind_to_address = "0.0.0.0"
+        port = 1780
+        doc_root = "/usr/share/snapserver/snapweb"
+    }
+
+    # TCP server settings
+    tcp = {
+        enabled = true
+        bind_to_address = "0.0.0.0"
+        port = 1705
+    }
+
+    # Stream settings
+    stream = {
+        bind_to_address = "0.0.0.0"
+        port = 1704
+        # Define your streams here
+        stream = "process:///usr/bin/mpv?name=Family Life&sampleformat=44100:16:2&params=https://das-edge10-live365-dal03.cdnstream.com/a45160_2 --no-terminal --audio-display=no --audio-channels=stereo --audio-samplerate=44100"
+        stream = "process:///usr/bin/mpv?name=Gentle Praise&sampleformat=44100:16:2&params=https://das-edge10-live365-dal03.cdnstream.com/a59845 --no-terminal --audio-display=no --audio-channels=stereo --audio-samplerate=44100"
+        stream = "process:///usr/bin/mpv?name=Family Radio&sampleformat=44100:16:2&params=https://ais-sa3.cdnstream1.com/2633_64.aac --no-terminal --audio-display=no --audio-channels=stereo --audio-samplerate=44100"
+        stream = "airplay:///usr/local/bin/shairport-sync?name=Airplay&devicename=Snapcast&port=5000"
+        stream = "librespot:///opt/librespot/bin/librespot?name=Spotify&devicename=Snapcast"
+        buffer = 1000
+        codec = "flac"
+        send_to_muted = false
+    }
+
+    # Logging settings
+    logging = {
+        sink = "stdout"
+        filter = "info"
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snapserver
+  labels:
+    app: snapserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snapserver
+  template:
+    metadata:
+      labels:
+        app: snapserver
+    spec:
+      containers:
+      - name: snapserver
+        image: ghcr.io/GITHUB_USERNAME/snapserver-docker:latest  # Replace GITHUB_USERNAME with your GitHub username
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 1704
+          name: control
+        - containerPort: 1705
+          name: streaming
+        - containerPort: 1780
+          name: http
+        - containerPort: 5000
+          name: airplay
+          protocol: TCP
+        - containerPort: 5000
+          name: airplay-udp
+          protocol: UDP
+        - containerPort: 5353
+          name: mdns
+          protocol: UDP
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/snapserver
+        - name: data-volume
+          mountPath: /var/lib/snapserver
+        resources:
+          limits:
+            cpu: "1"
+            memory: "512Mi"
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /v2/server/status
+            port: 1780
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /v2/server/status
+            port: 1780
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config-volume
+        configMap:
+          name: snapserver-config
+      - name: data-volume
+        emptyDir: {}  # For persistent storage, use PVC instead
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snapserver
+spec:
+  selector:
+    app: snapserver
+  ports:
+  - port: 1704
+    name: control
+    targetPort: control
+  - port: 1705
+    name: streaming
+    targetPort: streaming
+  - port: 1780
+    name: http
+    targetPort: http
+  - port: 5000
+    name: airplay
+    targetPort: airplay
+    protocol: TCP
+  - port: 5000
+    name: airplay-udp
+    targetPort: airplay-udp
+    protocol: UDP
+  - port: 5353
+    name: mdns
+    targetPort: mdns
+    protocol: UDP
+  type: ClusterIP  # Change to LoadBalancer or NodePort as needed 
