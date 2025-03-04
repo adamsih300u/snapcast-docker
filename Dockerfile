@@ -81,10 +81,26 @@ RUN git clone https://github.com/mikebrady/shairport-sync.git && \
 # Download and install librespot
 RUN mkdir -p /opt/librespot/bin && \
     cd /opt/librespot/bin && \
-    curl -L -o librespot.tar.gz https://github.com/librespot-org/librespot/releases/download/v0.4.2/librespot-v0.4.2-unknown-linux-gnu.tar.gz && \
-    tar -xzf librespot.tar.gz && \
+    ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then \
+        LIBRESPOT_URL="https://github.com/librespot-org/librespot/releases/download/v0.4.2/librespot-x86_64-unknown-linux-gnu-v0.4.2.tar.gz"; \
+    elif [ "$ARCH" = "arm64" ]; then \
+        LIBRESPOT_URL="https://github.com/librespot-org/librespot/releases/download/v0.4.2/librespot-aarch64-unknown-linux-gnu-v0.4.2.tar.gz"; \
+    else \
+        echo "Unsupported architecture: $ARCH" && exit 1; \
+    fi && \
+    curl -L -o librespot.tar.gz "$LIBRESPOT_URL" && \
+    tar xzf librespot.tar.gz && \
     rm librespot.tar.gz && \
-    chmod +x librespot
+    if [ "$ARCH" = "amd64" ]; then \
+        chmod +x librespot-x86_64-unknown-linux-gnu-v0.4.2/librespot && \
+        mv librespot-x86_64-unknown-linux-gnu-v0.4.2/librespot . && \
+        rm -rf librespot-x86_64-unknown-linux-gnu-v0.4.2; \
+    else \
+        chmod +x librespot-aarch64-unknown-linux-gnu-v0.4.2/librespot && \
+        mv librespot-aarch64-unknown-linux-gnu-v0.4.2/librespot . && \
+        rm -rf librespot-aarch64-unknown-linux-gnu-v0.4.2; \
+    fi
 
 # Copy binaries from builder
 COPY --from=builder /build/snapcast/build/bin/snapserver /usr/local/bin/
