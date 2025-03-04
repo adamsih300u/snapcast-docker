@@ -89,10 +89,10 @@ RUN apk add --no-cache --virtual .build-deps \
     rust \
     alsa-lib-dev
 
-# Build librespot
+# Build librespot with a specific version that's compatible with Alpine's Rust
 WORKDIR /tmp
 RUN mkdir -p /opt/librespot/bin && \
-    cargo install librespot --root=/opt/librespot && \
+    cargo install librespot@0.4.2 --locked --root=/opt/librespot && \
     apk del .build-deps
 
 # Copy binaries from builder
