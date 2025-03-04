@@ -1,21 +1,21 @@
 # Build stage
-FROM alpine:3.19 AS builder
+FROM debian:bookworm-slim AS builder
 
 # Install build dependencies
-# hadolint ignore=DL3018
-RUN apk add --no-cache \
-    build-base \
+RUN apt-get update && apt-get install -y \
+    build-essential \
     cmake \
     git \
-    boost-dev \
-    expat-dev \
-    flac-dev \
+    libboost-dev \
+    libexpat1-dev \
+    libflac-dev \
     libvorbis-dev \
-    opus-dev \
-    alsa-lib-dev \
-    avahi-dev \
-    soxr-dev \
-    openssl-dev
+    libopus-dev \
+    libasound2-dev \
+    libavahi-client-dev \
+    libsoxr-dev \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Clone and build Snapcast
 WORKDIR /build
@@ -27,47 +27,45 @@ RUN git clone https://github.com/badaix/snapcast.git && \
     make -j"$(nproc)"
 
 # Runtime stage
-FROM alpine:3.19
+FROM debian:bookworm-slim
 
 # Install runtime dependencies
-# hadolint ignore=DL3018
-RUN apk add --no-cache \
-    boost-libs \
-    expat \
-    flac \
-    libvorbis \
-    opus \
-    alsa-lib \
-    avahi-libs \
-    soxr \
+RUN apt-get update && apt-get install -y \
+    libboost-system1.74.0 \
+    libexpat1 \
+    libflac12 \
+    libvorbis0a \
+    libopus0 \
+    libasound2 \
+    libavahi-client3 \
+    libsoxr0 \
     mpv \
-    openssl \
+    libssl3 \
     dbus \
     # Dependencies for shairport-sync
-    popt \
-    libconfig \
-    libdaemon \
+    libpopt0 \
+    libconfig9 \
+    libdaemon0 \
     alsa-utils \
-    # Create directories
-    && mkdir -p /tmp/snapcast \
-    && mkdir -p /etc/snapserver \
-    && mkdir -p /var/lib/snapserver
-
-# Install shairport-sync from source
-# hadolint ignore=DL3018
-RUN apk add --no-cache --virtual .build-deps \
-    build-base \
+    # Dependencies for building shairport-sync
+    build-essential \
     git \
     autoconf \
     automake \
     libtool \
-    popt-dev \
+    libpopt-dev \
     libconfig-dev \
     libdaemon-dev \
-    alsa-lib-dev \
-    openssl-dev \
-    soxr-dev \
-    avahi-dev
+    libasound2-dev \
+    libssl-dev \
+    libsoxr-dev \
+    libavahi-client-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    # Create directories
+    && mkdir -p /tmp/snapcast \
+    && mkdir -p /etc/snapserver \
+    && mkdir -p /var/lib/snapserver
 
 # Clone and build shairport-sync
 WORKDIR /tmp
@@ -78,25 +76,23 @@ RUN git clone https://github.com/mikebrady/shairport-sync.git && \
     make && \
     make install && \
     cd / && \
-    rm -rf /tmp/shairport-sync && \
-    apk del .build-deps
+    rm -rf /tmp/shairport-sync
 
-# Download pre-built librespot binary instead of compiling
-# hadolint ignore=DL3018
-RUN apk add --no-cache curl && \
-    mkdir -p /opt/librespot/bin && \
+# Download and install librespot
+RUN mkdir -p /opt/librespot/bin && \
     cd /opt/librespot/bin && \
-    curl -L -o librespot https://github.com/librespot-org/librespot/releases/download/v0.4.2/librespot-v0.4.2-unknown-linux-musl.tar.gz && \
-    tar -xzf librespot && \
-    rm librespot && \
+    curl -L -o librespot.tar.gz https://github.com/librespot-org/librespot/releases/download/v0.4.2/librespot-v0.4.2-unknown-linux-gnu.tar.gz && \
+    tar -xzf librespot.tar.gz && \
+    rm librespot.tar.gz && \
     chmod +x librespot
 
 # Copy binaries from builder
 COPY --from=builder /build/snapcast/build/bin/snapserver /usr/local/bin/
 
 # Create non-root user
-RUN adduser -D -h /home/snapserver snapserver && \
-    chown -R snapserver:snapserver /etc/snapserver /var/lib/snapserver /tmp/snapcast
+RUN useradd -r -s /bin/false -d /home/snapserver snapserver && \
+    mkdir -p /home/snapserver && \
+    chown -R snapserver:snapserver /etc/snapserver /var/lib/snapserver /tmp/snapcast /home/snapserver
 
 # Create fifo file
 RUN mkfifo /tmp/snapfifo && \
