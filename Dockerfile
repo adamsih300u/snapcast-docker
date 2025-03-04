@@ -14,7 +14,6 @@ RUN apk add --no-cache \
     alsa-lib-dev \
     avahi-dev \
     soxr-dev \
-    libpulse-dev \
     openssl-dev
 
 # Clone and build Snapcast
