@@ -61,6 +61,7 @@ RUN apt-get update && apt-get install -y \
     libsoxr-dev \
     libavahi-client-dev \
     curl \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/* \
     # Create directories
     && mkdir -p /tmp/snapcast \
@@ -78,29 +79,22 @@ RUN git clone https://github.com/mikebrady/shairport-sync.git && \
     cd / && \
     rm -rf /tmp/shairport-sync
 
-# Download and install librespot
-RUN mkdir -p /opt/librespot/bin && \
-    cd /opt/librespot/bin && \
-    ARCH=$(dpkg --print-architecture) && \
-    if [ "$ARCH" = "amd64" ]; then \
-        LIBRESPOT_URL="https://github.com/librespot-org/librespot/releases/download/v0.4.2/librespot-x86_64-unknown-linux-gnu-v0.4.2.tar.gz"; \
-    elif [ "$ARCH" = "arm64" ]; then \
-        LIBRESPOT_URL="https://github.com/librespot-org/librespot/releases/download/v0.4.2/librespot-aarch64-unknown-linux-gnu-v0.4.2.tar.gz"; \
-    else \
-        echo "Unsupported architecture: $ARCH" && exit 1; \
-    fi && \
-    curl -L -o librespot.tar.gz "$LIBRESPOT_URL" && \
-    tar xzf librespot.tar.gz && \
-    rm librespot.tar.gz && \
-    if [ "$ARCH" = "amd64" ]; then \
-        chmod +x librespot-x86_64-unknown-linux-gnu-v0.4.2/librespot && \
-        mv librespot-x86_64-unknown-linux-gnu-v0.4.2/librespot . && \
-        rm -rf librespot-x86_64-unknown-linux-gnu-v0.4.2; \
-    else \
-        chmod +x librespot-aarch64-unknown-linux-gnu-v0.4.2/librespot && \
-        mv librespot-aarch64-unknown-linux-gnu-v0.4.2/librespot . && \
-        rm -rf librespot-aarch64-unknown-linux-gnu-v0.4.2; \
-    fi
+# Install Rust and build librespot
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    pkg-config \
+    libasound2-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    && . $HOME/.cargo/env \
+    && cargo install librespot --version 0.4.2 \
+    && mv $HOME/.cargo/bin/librespot /usr/local/bin/ \
+    && rm -rf $HOME/.cargo \
+    && rm -rf $HOME/.rustup \
+    && apt-get purge -y curl build-essential pkg-config libasound2-dev \
+    && apt-get autoremove -y \
+    && apt-get clean
 
 # Copy binaries from builder
 COPY --from=builder /build/snapcast/build/bin/snapserver /usr/local/bin/
