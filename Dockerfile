@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     cmake \
     git \
     libboost-dev \
+    libboost-program-options-dev \
     libexpat1-dev \
     libflac-dev \
     libvorbis-dev \
@@ -19,12 +20,19 @@ RUN apt-get update && apt-get install -y \
 
 # Clone and build Snapcast
 WORKDIR /build
-RUN git clone https://github.com/badaix/snapcast.git && \
+RUN git clone --depth 1 https://github.com/badaix/snapcast.git && \
     cd snapcast && \
     mkdir build && \
     cd build && \
-    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_PULSE=OFF .. && \
-    make -j"$(nproc)"
+    cmake -DCMAKE_BUILD_TYPE=Release \
+         -DBUILD_WITH_PULSE=OFF \
+         -DBUILD_WITH_AVAHI=ON \
+         -DBUILD_CLIENT=OFF \
+         -DBUILD_SERVER=ON \
+         -DBUILD_TESTS=OFF \
+         .. && \
+    make -j"$(nproc)" server && \
+    strip /build/snapcast/bin/snapserver
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -97,7 +105,7 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean
 
 # Copy binaries from builder
-COPY --from=builder /build/snapcast/build/bin/snapserver /usr/local/bin/
+COPY --from=builder /build/snapcast/bin/snapserver /usr/local/bin/
 
 # Create non-root user
 RUN useradd -r -s /bin/false -d /home/snapserver snapserver && \
