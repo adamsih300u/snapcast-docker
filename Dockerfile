@@ -81,19 +81,15 @@ RUN git clone https://github.com/mikebrady/shairport-sync.git && \
     rm -rf /tmp/shairport-sync && \
     apk del .build-deps
 
-# Install librespot from source
+# Download pre-built librespot binary instead of compiling
 # hadolint ignore=DL3018
-RUN apk add --no-cache --virtual .build-deps \
-    build-base \
-    cargo \
-    rust \
-    alsa-lib-dev
-
-# Build librespot with a specific version that's compatible with Alpine's Rust
-WORKDIR /tmp
-RUN mkdir -p /opt/librespot/bin && \
-    cargo install librespot@0.4.2 --locked --root=/opt/librespot && \
-    apk del .build-deps
+RUN apk add --no-cache curl && \
+    mkdir -p /opt/librespot/bin && \
+    cd /opt/librespot/bin && \
+    curl -L -o librespot https://github.com/librespot-org/librespot/releases/download/v0.4.2/librespot-v0.4.2-unknown-linux-musl.tar.gz && \
+    tar -xzf librespot && \
+    rm librespot && \
+    chmod +x librespot
 
 # Copy binaries from builder
 COPY --from=builder /build/snapcast/build/bin/snapserver /usr/local/bin/
